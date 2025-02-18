@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Real-Time Chat</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin-top: 50px;
+        }
+        #messages {
+            width: 300px;
+            height: 400px;
+            overflow-y: scroll;
+            border: 1px solid #ccc;
+            margin-bottom: 20px;
+            padding: 10px;
+        }
+        #messageInput, #usernameInput {
+            width: 200px;
+            padding: 10px;
+            margin-right: 10px;
+        }
+        #sendBtn {
+            padding: 10px 20px;
+            cursor: pointer;
+        }
+        .notification {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background-color: #ff9800;
+            color: white;
+            padding: 10px;
+            border-radius: 5px;
+            box-shadow: 0px 0px 10px rgba(0,0,0,0.1);
+            animation: fadeOut 3s forwards;
+        }
+        @keyframes fadeOut {
+            0% { opacity: 1; }
+            100% { opacity: 0; }
+        }
+    </style>
+</head>
+<body>
+    <h2>Enter Your Username</h2>
+    <input id="usernameInput" type="text" placeholder="Enter username...">
+    <button id="setUsernameBtn">Set Username</button>
+    
+    <h2>Chat</h2>
+    <div id="messages"></div>
+    <input id="messageInput" type="text" placeholder="Type a message..." disabled>
+    <button id="sendBtn" disabled>Send</button>
+
+    <script>
+        let username = '';
+        const socket = new WebSocket('ws://localhost:5000');
+        const messagesDiv = document.getElementById('messages');
+        const messageInput = document.getElementById('messageInput');
+        const sendBtn = document.getElementById('sendBtn');
+        const usernameInput = document.getElementById('usernameInput');
+        const setUsernameBtn = document.getElementById('setUsernameBtn');
+
+        // Request Notification Permission
+        if (Notification.permission !== "granted") {
+            Notification.requestPermission();
+        }
+
+        // Set Username and Enable Chat
+        setUsernameBtn.addEventListener('click', () => {
+            if (usernameInput.value.trim()) {
+                username = usernameInput.value;
+                usernameInput.disabled = true;
+                setUsernameBtn.disabled = true;
+                messageInput.disabled = false;
+                sendBtn.disabled = false;
+            }
+        });
+
+        // WebSocket Events
+        socket.onopen = () => {
+            console.log('Connected to WebSocket server');
+        };
+
+        socket.onmessage = (event) => {
+            const messageData = JSON.parse(event.data);
+
+            if (messageData.type === "new_message") {
+                displayMessage(messageData.data.username, messageData.data.text);
+            } 
+            else if (messageData.type === "notification") {
+                showNotification(messageData.data);
+            }
+        };
+
+        socket.onerror = (error) => {
+            console.log('WebSocket error:', error);
+        };
+
+        socket.onclose = () => {
+            console.log('Disconnected from WebSocket server');
+        };
+
+        // Send Message
+        sendBtn.addEventListener('click', () => {
+            const message = messageInput.value;
+            if (message) {
+                const data = JSON.stringify({ username, text: message });
+                socket.send(data);
+                messageInput.value = '';
+            }
+        });
+
+        // Display Messages in Chat
+        function displayMessage(sender, text) {
+            const message = document.createElement('p');
+            message.textContent = `${sender}: ${text}`;
+            messagesDiv.appendChild(message);
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        }
+
+        // Show UI Notification
+        function showNotification(notificationText) {
+            const notification = document.createElement('div');
+            notification.className = 'notification';
+            notification.textContent = notificationText;
+            document.body.appendChild(notification);
+
+            setTimeout(() => {
+                notification.remove();
+            }, 3000); // Remove after 3 seconds
+
+            // Browser Push Notification
+            if (Notification.permission === "granted") {
+                new Notification("New Message", {
+                    body: notificationText,
+                    icon: "chat-icon.png" // Optional: Add an icon
+                });
+            }
+        }
+    </script>
+</body>
+</html>
